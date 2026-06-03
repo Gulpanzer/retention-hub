@@ -1,0 +1,131 @@
+import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
+import { Users, AlertTriangle, CheckCircle, XCircle } from 'lucide-react'
+import { api } from '../lib/api'
+import { StatCard } from '../components/StatCard'
+import { RetentionBadge } from '../components/RetentionBadge'
+
+function formatDate(d: string | null) {
+  if (!d) return '—'
+  return new Date(d).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+export function Dashboard() {
+  const { data: overview, isLoading, error } = useQuery({
+    queryKey: ['overview'],
+    queryFn: api.getOverview,
+  })
+
+  const { data: segments } = useQuery({
+    queryKey: ['segments'],
+    queryFn: api.getSegments,
+  })
+
+  if (isLoading) {
+    return <p className="text-sm text-[var(--color-muted)]">Loading dashboard…</p>
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        Failed to load: {error.message}
+      </div>
+    )
+  }
+
+  if (!overview) return null
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-xl font-semibold tracking-tight">Dashboard</h2>
+        <p className="mt-1 text-sm text-[var(--color-muted)]">
+          Retention overview from Klaviyo
+        </p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Total customers"
+          value={overview.total}
+          icon={<Users className="h-5 w-5" />}
+        />
+        <StatCard
+          label="Active"
+          value={overview.active}
+          sub="Activity in last 30 days"
+          icon={<CheckCircle className="h-5 w-5" />}
+        />
+        <StatCard
+          label="At risk"
+          value={overview.atRisk}
+          sub="30–90 days since activity"
+          icon={<AlertTriangle className="h-5 w-5" />}
+        />
+        <StatCard
+          label="Churned"
+          value={overview.churned}
+          sub="90+ days inactive"
+          icon={<XCircle className="h-5 w-5" />}
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-6">
+          <h3 className="font-semibold">Nurture this week</h3>
+          <p className="mt-1 text-sm text-[var(--color-muted)]">
+            At-risk customers to reach out to
+          </p>
+          {overview.atRiskCustomers.length === 0 ? (
+            <p className="mt-4 text-sm text-[var(--color-muted)]">No at-risk customers right now.</p>
+          ) : (
+            <ul className="mt-4 divide-y divide-[var(--color-border)]">
+              {overview.atRiskCustomers.slice(0, 8).map((c) => (
+                <li key={c.id} className="flex items-center justify-between py-3 first:pt-0">
+                  <div>
+                    <Link
+                      to={`/customers/${c.id}`}
+                      className="font-medium text-[var(--color-foreground)] hover:text-[var(--color-accent)]"
+                    >
+                      {c.name}
+                    </Link>
+                    <p className="text-xs text-[var(--color-muted)]">{c.email}</p>
+                  </div>
+                  <div className="text-right">
+                    <RetentionBadge status={c.retentionStatus} />
+                    <p className="mt-1 text-xs text-[var(--color-muted)]">
+                      Last: {formatDate(c.lastEventDate)}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-6">
+          <h3 className="font-semibold">Klaviyo segments</h3>
+          <p className="mt-1 text-sm text-[var(--color-muted)]">Audience groups</p>
+          {!segments?.length ? (
+            <p className="mt-4 text-sm text-[var(--color-muted)]">No segments found.</p>
+          ) : (
+            <ul className="mt-4 space-y-2">
+              {segments.map((s) => (
+                <li
+                  key={s.id}
+                  className="flex items-center justify-between rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm"
+                >
+                  <span className="font-medium">{s.name}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+    </div>
+  )
+}

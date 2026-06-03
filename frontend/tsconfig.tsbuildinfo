@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/components/layout.tsx","./src/components/retentionbadge.tsx","./src/components/statcard.tsx","./src/lib/api.ts","./src/pages/customerdetail.tsx","./src/pages/customers.tsx","./src/pages/dashboard.tsx","./src/pages/settings.tsx"],"errors":true,"version":"5.8.3"}
