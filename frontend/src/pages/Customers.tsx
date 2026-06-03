@@ -19,6 +19,14 @@ function formatClv(v: number | null) {
   return `€${v.toFixed(0)}`
 }
 
+function getDaysSinceLastActivity(d: string | null) {
+  if (!d) return null
+  const lastActivity = new Date(d)
+  if (Number.isNaN(lastActivity.getTime())) return null
+  const diffMs = Date.now() - lastActivity.getTime()
+  return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)))
+}
+
 export function Customers() {
   const [search, setSearch] = useState('')
   const { data: customers, isLoading, error } = useQuery({
@@ -78,34 +86,48 @@ export function Customers() {
               <th className="px-4 py-3 font-medium text-[var(--color-muted)]">Retention</th>
               <th className="px-4 py-3 font-medium text-[var(--color-muted)]">CLV</th>
               <th className="px-4 py-3 font-medium text-[var(--color-muted)]">Last activity</th>
+              <th className="px-4 py-3 font-medium text-[var(--color-muted)]">Last activity days</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((c) => (
-              <tr
-                key={c.id}
-                className="border-b border-[var(--color-border)] last:border-0 hover:bg-stone-50/50"
-              >
-                <td className="px-4 py-3">
-                  <Link
-                    to={`/customers/${c.id}`}
-                    className="font-medium hover:text-[var(--color-accent)]"
+            {filtered.map((c) => {
+              const daysSinceLastActivity = getDaysSinceLastActivity(c.lastEventDate)
+
+              return (
+                <tr
+                  key={c.id}
+                  className="border-b border-[var(--color-border)] last:border-0 hover:bg-stone-50/50"
+                >
+                  <td className="px-4 py-3">
+                    <Link
+                      to={`/customers/${c.id}`}
+                      className="font-medium hover:text-[var(--color-accent)]"
+                    >
+                      {c.name}
+                    </Link>
+                    <p className="text-xs text-[var(--color-muted)]">{c.email}</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <RetentionBadge status={c.retentionStatus} />
+                  </td>
+                  <td className="px-4 py-3 text-[var(--color-muted)]">
+                    {formatClv(c.historicClv ?? c.predictedClv)}
+                  </td>
+                  <td className="px-4 py-3 text-[var(--color-muted)]">
+                    {formatDate(c.lastEventDate)}
+                  </td>
+                  <td
+                    className={`px-4 py-3 ${
+                      (daysSinceLastActivity ?? 0) > 60
+                        ? 'font-medium text-red-600'
+                        : 'text-[var(--color-muted)]'
+                    }`}
                   >
-                    {c.name}
-                  </Link>
-                  <p className="text-xs text-[var(--color-muted)]">{c.email}</p>
-                </td>
-                <td className="px-4 py-3">
-                  <RetentionBadge status={c.retentionStatus} />
-                </td>
-                <td className="px-4 py-3 text-[var(--color-muted)]">
-                  {formatClv(c.historicClv ?? c.predictedClv)}
-                </td>
-                <td className="px-4 py-3 text-[var(--color-muted)]">
-                  {formatDate(c.lastEventDate)}
-                </td>
-              </tr>
-            ))}
+                    {daysSinceLastActivity ?? '—'}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
         {filtered.length === 0 && (
