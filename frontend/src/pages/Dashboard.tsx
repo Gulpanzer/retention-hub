@@ -100,6 +100,12 @@ export function Dashboard() {
                     <p className="mt-1 text-xs text-[var(--color-muted)]">
                       Last: {formatDate(c.lastEventDate)}
                     </p>
+                    <Link
+                      to={`/customers/${c.id}?compose=1`}
+                      className="mt-2 inline-flex rounded-md border border-[var(--color-border)] px-2.5 py-1 text-xs font-medium text-[var(--color-foreground)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+                    >
+                      Send email
+                    </Link>
                   </div>
                 </li>
               ))}
