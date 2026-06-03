@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useParams, Link, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Mail, MessageCircle, Send } from 'lucide-react'
 import { api } from '../lib/api'
@@ -29,11 +29,14 @@ function parseGmailDate(dateStr: string): number {
 
 export function CustomerDetail() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
+  const subjectInputRef = useRef<HTMLInputElement>(null)
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [threadId, setThreadId] = useState<string | undefined>()
   const [sendError, setSendError] = useState<string | null>(null)
+  const shouldOpenComposer = ['1', 'true'].includes((searchParams.get('compose') ?? '').toLowerCase())
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['customer', id],
@@ -75,6 +78,12 @@ export function CustomerDetail() {
     setThreadId(replyThreadId)
     document.getElementById('compose-panel')?.scrollIntoView({ behavior: 'smooth' })
   }
+
+  useEffect(() => {
+    if (!shouldOpenComposer || !data) return
+    document.getElementById('compose-panel')?.scrollIntoView({ behavior: 'smooth' })
+    subjectInputRef.current?.focus()
+  }, [data, shouldOpenComposer])
 
   if (isLoading) {
     return <p className="text-sm text-[var(--color-muted)]">Loading customer…</p>
@@ -212,6 +221,7 @@ export function CustomerDetail() {
                 }}
               >
                 <input
+                  ref={subjectInputRef}
                   type="text"
                   placeholder="Subject"
                   value={subject}
