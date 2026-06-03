@@ -15,12 +15,23 @@ export interface CustomerSummary {
   createdAt: string | null
 }
 
+export interface TimelineEventContent {
+  subject?: string | null
+  campaignName?: string | null
+  messageType?: string | null
+  listName?: string | null
+  url?: string | null
+  formId?: string | null
+  page?: string | null
+}
+
 export interface TimelineEvent {
   id: string
   type: string
   metricName: string
   datetime: string
   properties: Record<string, unknown>
+  content: TimelineEventContent | null
   source: 'klaviyo'
 }
 
@@ -45,7 +56,16 @@ export interface GmailThread {
   snippet: string
   date: string
   from: string
-  messages: Array<{ id: string; from: string; date: string; snippet: string; body: string }>
+  messages: Array<{
+    id: string
+    threadId: string
+    from: string
+    to: string
+    subject: string
+    date: string
+    snippet: string
+    body: string
+  }>
 }
 
 const API_BASE = '/api'

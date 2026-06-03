@@ -18,13 +18,45 @@ export interface CustomerSummary {
   createdAt: string | null
 }
 
+export interface TimelineEventContent {
+  subject?: string | null
+  campaignName?: string | null
+  messageType?: string | null
+  listName?: string | null
+  url?: string | null
+  formId?: string | null
+  page?: string | null
+}
+
 export interface TimelineEvent {
   id: string
   type: string
   metricName: string
   datetime: string
   properties: Record<string, unknown>
+  content: TimelineEventContent | null
   source: 'klaviyo'
+}
+
+function extractEventContent(props: Record<string, unknown>): TimelineEventContent | null {
+  const subject = (props.Subject ?? props.subject) as string | undefined
+  const campaignName = (props['Campaign Name'] ?? props.campaign_name) as string | undefined
+  const messageType = (props['Message Type'] ?? props.message_type) as string | undefined
+  const listName = (props.list_name ?? props.List) as string | undefined
+  const url = (props.URL ?? props.url) as string | undefined
+  const formId = props.form_id as string | undefined
+  const page = props.page as string | undefined
+
+  const content: TimelineEventContent = {}
+  if (subject) content.subject = subject
+  if (campaignName) content.campaignName = campaignName
+  if (messageType) content.messageType = messageType
+  if (listName) content.listName = listName
+  if (url) content.url = url
+  if (formId) content.formId = formId
+  if (page) content.page = page
+
+  return Object.keys(content).length > 0 ? content : null
 }
 
 export interface SegmentSummary {
@@ -206,12 +238,14 @@ export async function fetchProfileEvents(profileId: string): Promise<TimelineEve
   return (data.data ?? []).map((e) => {
     const metricId = e.relationships?.metric?.data?.id
     const metricName = metricId ? metricMap.get(metricId) ?? 'Event' : 'Event'
+    const properties = e.attributes.event_properties ?? {}
     return {
       id: e.id,
       type: 'event',
       metricName,
       datetime: e.attributes.datetime,
-      properties: e.attributes.event_properties ?? {},
+      properties,
+      content: extractEventContent(properties),
       source: 'klaviyo' as const,
     }
   })

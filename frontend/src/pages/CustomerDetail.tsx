@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Mail, MessageCircle, Send } from 'lucide-react'
 import { api } from '../lib/api'
 import { RetentionBadge } from '../components/RetentionBadge'
+import { TimelineItem, type TimelineItemData } from '../components/TimelineItem'
 
 function formatDate(d: string | null) {
   if (!d) return '—'
@@ -21,11 +22,17 @@ function formatClv(v: number | null) {
   return `€${v.toFixed(2)}`
 }
 
+function parseGmailDate(dateStr: string): number {
+  const t = new Date(dateStr).getTime()
+  return Number.isNaN(t) ? 0 : t
+}
+
 export function CustomerDetail() {
   const { id } = useParams<{ id: string }>()
   const queryClient = useQueryClient()
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
+  const [threadId, setThreadId] = useState<string | undefined>()
   const [sendError, setSendError] = useState<string | null>(null)
 
   const { data, isLoading, error } = useQuery({
@@ -51,16 +58,23 @@ export function CustomerDetail() {
         to: data!.customer.email,
         subject,
         body,
-        threadId: gmailThreads?.threads[0]?.id,
+        threadId,
       }),
     onSuccess: () => {
       setSubject('')
       setBody('')
+      setThreadId(undefined)
       setSendError(null)
       queryClient.invalidateQueries({ queryKey: ['gmail-threads', data?.customer.email] })
     },
     onError: (err: Error) => setSendError(err.message),
   })
+
+  const handleReply = (replySubject: string, replyThreadId: string) => {
+    setSubject(replySubject)
+    setThreadId(replyThreadId)
+    document.getElementById('compose-panel')?.scrollIntoView({ behavior: 'smooth' })
+  }
 
   if (isLoading) {
     return <p className="text-sm text-[var(--color-muted)]">Loading customer…</p>
@@ -81,24 +95,40 @@ export function CustomerDetail() {
 
   const { customer, events } = data
 
-  const timelineItems = [
-    ...events.map((e) => ({
-      id: e.id,
-      kind: 'klaviyo' as const,
-      title: e.metricName,
-      datetime: e.datetime,
-      detail: null as string | null,
-    })),
-    ...(gmailThreads?.threads ?? []).flatMap((t) =>
-      t.messages.map((m) => ({
-        id: `gmail-${m.id}`,
-        kind: 'gmail' as const,
-        title: t.subject,
-        datetime: m.date,
-        detail: m.snippet,
-      }))
+  const timelineItems: TimelineItemData[] = [
+    ...events.map(
+      (e): TimelineItemData => ({
+        kind: 'klaviyo',
+        id: e.id,
+        title: e.metricName,
+        datetime: e.datetime,
+        content: e.content ?? null,
+        event: e,
+      })
     ),
-  ].sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime())
+    ...(gmailThreads?.threads ?? []).flatMap((t) =>
+      t.messages.map(
+        (m): TimelineItemData => ({
+          kind: 'gmail',
+          id: `gmail-${m.id}`,
+          title: m.subject || t.subject,
+          datetime: m.date,
+          from: m.from,
+          to: m.to,
+          body: m.body,
+          snippet: m.snippet,
+          threadId: m.threadId,
+          subject: m.subject || t.subject,
+        })
+      )
+    ),
+  ].sort((a, b) => {
+    const ta =
+      a.kind === 'gmail' ? parseGmailDate(a.datetime) : new Date(a.datetime).getTime()
+    const tb =
+      b.kind === 'gmail' ? parseGmailDate(b.datetime) : new Date(b.datetime).getTime()
+    return tb - ta
+  })
 
   return (
     <div className="space-y-8">
@@ -139,49 +169,29 @@ export function CustomerDetail() {
         <section className="lg:col-span-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-6">
           <h3 className="font-semibold">Comms timeline</h3>
           <p className="mt-1 text-sm text-[var(--color-muted)]">
-            Klaviyo events {gmailStatus?.connected ? '+ Gmail' : ''}
+            Click an item to view content · Klaviyo{' '}
+            {gmailStatus?.connected ? '+ Gmail' : ''}
           </p>
           {timelineItems.length === 0 ? (
             <p className="mt-4 text-sm text-[var(--color-muted)]">No activity yet.</p>
           ) : (
-            <ul className="mt-4 space-y-3">
+            <ul className="mt-4 space-y-2">
               {timelineItems.map((item) => (
-                <li
+                <TimelineItem
                   key={item.id}
-                  className="flex gap-3 rounded-lg border border-[var(--color-border)] p-3"
-                >
-                  <div
-                    className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                      item.kind === 'gmail'
-                        ? 'bg-blue-50 text-blue-600'
-                        : 'bg-teal-50 text-teal-600'
-                    }`}
-                  >
-                    {item.kind === 'gmail' ? (
-                      <Mail className="h-4 w-4" />
-                    ) : (
-                      <span className="text-xs font-bold">K</span>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm">{item.title}</p>
-                    {item.detail && (
-                      <p className="mt-0.5 truncate text-xs text-[var(--color-muted)]">
-                        {item.detail}
-                      </p>
-                    )}
-                    <p className="mt-1 text-xs text-[var(--color-muted)]">
-                      {formatDate(item.datetime)}
-                    </p>
-                  </div>
-                </li>
+                  item={item}
+                  onReply={gmailStatus?.connected ? handleReply : undefined}
+                />
               ))}
             </ul>
           )}
         </section>
 
         <div className="space-y-6">
-          <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-6">
+          <section
+            id="compose-panel"
+            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-6"
+          >
             <h3 className="flex items-center gap-2 font-semibold">
               <Mail className="h-4 w-4" /> Send email
             </h3>
@@ -217,9 +227,10 @@ export function CustomerDetail() {
                   className="w-full resize-none rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
                   required
                 />
-                {sendError && (
-                  <p className="text-xs text-red-600">{sendError}</p>
+                {threadId && (
+                  <p className="text-xs text-[var(--color-muted)]">Replying in thread</p>
                 )}
+                {sendError && <p className="text-xs text-red-600">{sendError}</p>}
                 <button
                   type="submit"
                   disabled={sendMutation.isPending}

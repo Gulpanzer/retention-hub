@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { google } from 'googleapis'
+import { extractBodyFromPayload } from '../gmailBody.js'
 
 const SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
@@ -20,7 +21,10 @@ function getOAuthClient() {
   const clientId = process.env.GOOGLE_CLIENT_ID
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET
   const redirectUri =
-    process.env.GOOGLE_REDIRECT_URI || 'http://localhost:8787/api/gmail/callback'
+    process.env.GOOGLE_REDIRECT_URI ||
+    (process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}/api/gmail/callback`
+      : 'http://localhost:8787/api/gmail/callback') // local dev uses /api mount
 
   if (!clientId || !clientSecret) {
     return null
@@ -140,7 +144,16 @@ gmailRouter.get('/threads', async (req, res) => {
       snippet: string
       date: string
       from: string
-      messages: Array<{ id: string; from: string; date: string; snippet: string; body: string }>
+      messages: Array<{
+        id: string
+        threadId: string
+        from: string
+        to: string
+        subject: string
+        date: string
+        snippet: string
+        body: string
+      }>
     }> = []
 
     for (const t of threads.slice(0, 5)) {
@@ -148,31 +161,31 @@ gmailRouter.get('/threads', async (req, res) => {
       const thread = await gmail.users.threads.get({
         userId: 'me',
         id: t.id,
-        format: 'metadata',
-        metadataHeaders: ['From', 'To', 'Subject', 'Date'],
+        format: 'full',
       })
 
       const messages = (thread.data.messages ?? []).map((m) => {
         const headers = m.payload?.headers ?? []
         const get = (name: string) =>
           headers.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value ?? ''
+        const body = extractBodyFromPayload(m.payload ?? undefined) || m.snippet || ''
         return {
           id: m.id ?? '',
+          threadId: t.id!,
           from: get('From'),
+          to: get('To'),
+          subject: get('Subject') || '(no subject)',
           date: get('Date'),
           snippet: m.snippet ?? '',
-          body: m.snippet ?? '',
+          body,
         }
       })
 
       const first = messages[0]
-      const subjectHeader = thread.data.messages?.[0]?.payload?.headers?.find(
-        (h) => h.name === 'Subject'
-      )
 
       results.push({
         id: t.id,
-        subject: subjectHeader?.value ?? '(no subject)',
+        subject: first?.subject ?? '(no subject)',
         snippet: first?.snippet ?? '',
         date: first?.date ?? '',
         from: first?.from ?? '',
