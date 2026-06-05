@@ -50,6 +50,12 @@ export interface OverviewStats {
   atRiskCustomers: CustomerSummary[]
 }
 
+export interface EmailEngagedNoOrderCustomer {
+  customer: CustomerSummary
+  lastOrderDate: string | null
+  lastEmailOpenDate: string
+}
+
 export interface GmailThread {
   id: string
   subject: string
@@ -94,6 +100,10 @@ export const api = {
   getSegments: () =>
     fetchJson<{ segments: SegmentSummary[] }>('/customers/segments').then((r) => r.segments),
   getKlaviyoStatus: () => fetchJson<{ connected: boolean }>('/customers/status/klaviyo'),
+  getEmailEngagedNoOrderCustomers: () =>
+    fetchJson<{ customers: EmailEngagedNoOrderCustomer[] }>('/customers/reports/engaged-no-orders').then(
+      (r) => r.customers
+    ),
   getGmailStatus: () =>
     fetchJson<{ configured: boolean; connected: boolean; email: string | null }>('/gmail/status'),
   getGmailAuthUrl: () =>

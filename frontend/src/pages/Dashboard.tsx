@@ -20,6 +20,11 @@ export function Dashboard() {
     queryFn: api.getOverview,
   })
 
+  const { data: emailEngagedNoOrder } = useQuery({
+    queryKey: ['reports', 'engaged-no-orders'],
+    queryFn: api.getEmailEngagedNoOrderCustomers,
+  })
+
   const { data: segments } = useQuery({
     queryKey: ['segments'],
     queryFn: api.getSegments,
@@ -132,6 +137,45 @@ export function Dashboard() {
           )}
         </section>
       </div>
+
+      <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-6">
+        <h3 className="font-semibold">No order in 30 days, still opening emails</h3>
+        <p className="mt-1 text-sm text-[var(--color-muted)]">
+          Customers with no recent purchase but active email engagement
+        </p>
+        {!emailEngagedNoOrder?.length ? (
+          <p className="mt-4 text-sm text-[var(--color-muted)]">No matching customers right now.</p>
+        ) : (
+          <div className="mt-4 overflow-hidden rounded-lg border border-[var(--color-border)]">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-[var(--color-border)] bg-stone-50/80">
+                  <th className="px-4 py-2.5 font-medium text-[var(--color-muted)]">Customer</th>
+                  <th className="px-4 py-2.5 font-medium text-[var(--color-muted)]">Last order</th>
+                  <th className="px-4 py-2.5 font-medium text-[var(--color-muted)]">Last email open</th>
+                </tr>
+              </thead>
+              <tbody>
+                {emailEngagedNoOrder.slice(0, 12).map(({ customer, lastOrderDate, lastEmailOpenDate }) => (
+                  <tr key={customer.id} className="border-b border-[var(--color-border)] last:border-0">
+                    <td className="px-4 py-2.5">
+                      <Link
+                        to={`/customers/${customer.id}`}
+                        className="font-medium text-[var(--color-foreground)] hover:text-[var(--color-accent)]"
+                      >
+                        {customer.name}
+                      </Link>
+                      <p className="text-xs text-[var(--color-muted)]">{customer.email}</p>
+                    </td>
+                    <td className="px-4 py-2.5 text-[var(--color-muted)]">{formatDate(lastOrderDate)}</td>
+                    <td className="px-4 py-2.5 text-[var(--color-muted)]">{formatDate(lastEmailOpenDate)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   )
 }
