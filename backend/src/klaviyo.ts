@@ -275,6 +275,153 @@ export interface OverviewStats {
   atRiskCustomers: CustomerSummary[]
 }
 
+export interface EmailEngagedNoOrderCustomer {
+  customer: CustomerSummary
+  lastOrderDate: string | null
+  lastEmailOpenDate: string
+}
+
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
+
+function isWithinLast30Days(dateStr: string | null): boolean {
+  if (!dateStr) return false
+  const time = new Date(dateStr).getTime()
+  if (Number.isNaN(time)) return false
+  return Date.now() - time <= THIRTY_DAYS_MS
+}
+
+function isOrderMetricName(metricName: string): boolean {
+  const m = metricName.toLowerCase()
+  return m.includes('placed order') || m.includes('ordered product')
+}
+
+function isEmailOpenMetricName(metricName: string): boolean {
+  const m = metricName.toLowerCase()
+  return m.includes('email') && m.includes('open')
+}
+
+async function fetchProfileOrderAndEmailOpenSignals(profileId: string): Promise<{
+  lastOrderDate: string | null
+  lastEmailOpenDate: string | null
+}> {
+  let cursor: string | undefined
+  let lastOrderDate: string | null = null
+  let lastEmailOpenDate: string | null = null
+
+  do {
+    const params: Record<string, string> = {
+      filter: `equals(profile_id,"${profileId}")`,
+      sort: '-datetime',
+      'page[size]': '50',
+      include: 'metric',
+    }
+    if (cursor) params['page[cursor]'] = cursor
+
+    const data = await klaviyoFetch<{
+      data: Array<{
+        id: string
+        attributes: { datetime: string }
+        relationships?: { metric?: { data?: { id: string } } }
+      }>
+      included?: Array<{
+        id: string
+        type: string
+        attributes?: { name?: string }
+      }>
+      links?: { next?: string | null }
+    }>('/events/', params)
+
+    const metricMap = new Map<string, string>()
+    for (const inc of data.included ?? []) {
+      if (inc.type === 'metric' && inc.attributes?.name) {
+        metricMap.set(inc.id, inc.attributes.name)
+      }
+    }
+
+    for (const event of data.data ?? []) {
+      const metricId = event.relationships?.metric?.data?.id
+      const metricName = metricId ? metricMap.get(metricId) ?? '' : ''
+
+      if (!metricName) continue
+
+      if (isOrderMetricName(metricName) && !lastOrderDate) {
+        lastOrderDate = event.attributes.datetime
+      }
+      if (isEmailOpenMetricName(metricName) && !lastEmailOpenDate) {
+        lastEmailOpenDate = event.attributes.datetime
+      }
+    }
+
+    const oldestEventInPage = data.data?.[data.data.length - 1]
+    const oldestTime = oldestEventInPage
+      ? new Date(oldestEventInPage.attributes.datetime).getTime()
+      : Number.POSITIVE_INFINITY
+
+    if (isWithinLast30Days(lastOrderDate) || oldestTime < Date.now() - THIRTY_DAYS_MS) {
+      cursor = undefined
+    } else {
+      const next = data.links?.next
+      if (next) {
+        const nextUrl = new URL(next)
+        cursor = nextUrl.searchParams.get('page[cursor]') ?? undefined
+      } else {
+        cursor = undefined
+      }
+    }
+  } while (cursor)
+
+  return { lastOrderDate, lastEmailOpenDate }
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  worker: (item: T) => Promise<R>,
+  concurrency = 5
+): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let nextIndex = 0
+
+  async function runWorker() {
+    while (nextIndex < items.length) {
+      const current = nextIndex
+      nextIndex += 1
+      results[current] = await worker(items[current])
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, () => runWorker())
+  )
+
+  return results
+}
+
+export async function fetchEmailEngagedNoOrderCustomers(): Promise<EmailEngagedNoOrderCustomer[]> {
+  const customers = await fetchAllProfiles()
+
+  const evaluated = await mapWithConcurrency(customers, async (customer) => {
+    const { lastOrderDate, lastEmailOpenDate } = await fetchProfileOrderAndEmailOpenSignals(customer.id)
+
+    if (!isWithinLast30Days(lastEmailOpenDate)) {
+      return null
+    }
+
+    if (isWithinLast30Days(lastOrderDate)) {
+      return null
+    }
+
+    return {
+      customer,
+      lastOrderDate,
+      lastEmailOpenDate: lastEmailOpenDate!,
+    } satisfies EmailEngagedNoOrderCustomer
+  })
+
+  return evaluated
+    .filter((item): item is EmailEngagedNoOrderCustomer => item !== null)
+    .sort((a, b) => new Date(b.lastEmailOpenDate).getTime() - new Date(a.lastEmailOpenDate).getTime())
+}
+
 export async function fetchOverview(): Promise<OverviewStats> {
   const customers = await fetchAllProfiles()
   const stats: OverviewStats = {

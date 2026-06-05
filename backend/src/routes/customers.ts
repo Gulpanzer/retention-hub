@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import {
   fetchAllProfiles,
+  fetchEmailEngagedNoOrderCustomers,
   fetchProfile,
   fetchProfileEvents,
   fetchSegments,
@@ -36,6 +37,18 @@ customersRouter.get('/status/klaviyo', async (_req, res) => {
     res.json({ connected })
   } catch {
     res.json({ connected: false })
+  }
+})
+
+customersRouter.get('/reports/engaged-no-orders', async (_req, res) => {
+  try {
+    const customers = await fetchEmailEngagedNoOrderCustomers()
+    res.json({ customers })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({
+      error: err instanceof Error ? err.message : 'Failed to fetch engaged no-order customers',
+    })
   }
 })
 
