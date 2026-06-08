@@ -272,6 +272,7 @@ export interface OverviewStats {
   atRisk: number
   churned: number
   unknown: number
+  totalRevenueAtRisk: number
   atRiskCustomers: CustomerSummary[]
 }
 
@@ -430,6 +431,7 @@ export async function fetchOverview(): Promise<OverviewStats> {
     atRisk: 0,
     churned: 0,
     unknown: 0,
+    totalRevenueAtRisk: 0,
     atRiskCustomers: [],
   }
 
@@ -441,6 +443,7 @@ export async function fetchOverview(): Promise<OverviewStats> {
       case 'at_risk':
         stats.atRisk++
         stats.atRiskCustomers.push(c)
+        stats.totalRevenueAtRisk += c.predictedClv ?? 0
         break
       case 'churned':
         stats.churned++

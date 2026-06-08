@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Users, AlertTriangle, CheckCircle, XCircle } from 'lucide-react'
+import { Users, AlertTriangle, CheckCircle, XCircle, DollarSign } from 'lucide-react'
 import { api } from '../lib/api'
 import { StatCard } from '../components/StatCard'
 import { RetentionBadge } from '../components/RetentionBadge'
@@ -12,6 +12,14 @@ function formatDate(d: string | null) {
     day: 'numeric',
     year: 'numeric',
   })
+}
+
+function formatCurrency(amount: number) {
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(amount)
 }
 
 export function Dashboard() {
@@ -53,7 +61,7 @@ export function Dashboard() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard
           label="Total customers"
           value={overview.total}
@@ -76,6 +84,12 @@ export function Dashboard() {
           value={overview.churned}
           sub="90+ days inactive"
           icon={<XCircle className="h-5 w-5" />}
+        />
+        <StatCard
+          label="Revenue at risk"
+          value={formatCurrency(overview.totalRevenueAtRisk)}
+          sub="Sum of predicted CLV (at-risk)"
+          icon={<DollarSign className="h-5 w-5" />}
         />
       </div>
 
