@@ -47,6 +47,7 @@ export interface OverviewStats {
   atRisk: number
   churned: number
   unknown: number
+  totalRevenueAtRisk: number
   atRiskCustomers: CustomerSummary[]
 }
 
